@@ -23,7 +23,7 @@ public class CustomerProduct {
     @Transient
     private String productName;
     
-    @JsonIgnore//it is necesary for avoid infinite recursion
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY,targetEntity = Customer.class)
     @JoinColumn(name = "customerId", nullable = true)   
     private Customer customer;      

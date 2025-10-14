@@ -19,10 +19,6 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.IDENTITY) // (opcional) más común con autoincrement
     private Long id;
 
-    // (opcional pero recomendado) habilita locking optimista “real”
-    // @Version
-    // private Long version;
-
     private String name;
     private String phone;
     private String code;  

@@ -31,6 +31,6 @@ public class Transaction {
     @Convert(converter = TransactionStatusConverter.class)
     private TransactionStatus status;
 
-    @Enumerated(EnumType.STRING) // 👈 se guarda como "WEB", "CAJERO" o "OFICINA"
+    @Enumerated(EnumType.STRING) // Se guarda como "WEB", "CAJERO" o "OFICINA"
     private Channel channel;
 }

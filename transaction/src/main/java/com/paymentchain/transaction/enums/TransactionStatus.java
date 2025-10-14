@@ -16,7 +16,7 @@ public enum TransactionStatus {
         return code;
     }
 
-    // 🔄 Conversión de código a enum
+    // Conversión de código a enum
     public static TransactionStatus fromCode(String code) {
         for (TransactionStatus status : values()) {
             if (status.code.equals(code)) {

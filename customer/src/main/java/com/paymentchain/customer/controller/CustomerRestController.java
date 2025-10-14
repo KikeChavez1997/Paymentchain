@@ -129,9 +129,9 @@ public class CustomerRestController {
 
     @GetMapping("/full")
     public Mono<ResponseEntity<Customer>> getByCode(@RequestParam String code) {
-        return Mono.fromCallable(() -> customerRepository.findOneByCode(code)) // ← ya trae products
+        return Mono.fromCallable(() -> customerRepository.findOneByCode(code)) // ya trae products
             .subscribeOn(Schedulers.boundedElastic()) // offload JPA bloqueante
-            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))       // Optional -> Mono<Customer>
+            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))       // Optional - Mono<Customer>
             .flatMap(customer -> {
                 var products = customer.getProducts(); // ya inicializados por @EntityGraph
 
@@ -191,14 +191,14 @@ public class CustomerRestController {
             .build())
         .exchangeToFlux(resp -> {
             if (resp.statusCode().is2xxSuccessful()) {
-                // Tipo explícito con ParameterizedTypeReference
+                
                 return resp.bodyToFlux(new ParameterizedTypeReference<Map<String, Object>>() {});
             }
             if (resp.statusCode().value() == HttpStatus.NOT_FOUND.value()) {
-                // 👇 especifica el tipo genérico para evitar el error
+                
                 return Flux.<Map<String, Object>>empty();
             }
-            // 👇 también con tipo explícito
+            
             return Flux.<Map<String, Object>>error(
                 new IllegalStateException("Error remoto: " + resp.statusCode())
             );
