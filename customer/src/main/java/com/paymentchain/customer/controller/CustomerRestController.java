@@ -45,11 +45,11 @@ public class CustomerRestController {
     @Autowired
 
     private final CustomerRepository customerRepository;
-    private final WebClient.Builder webClientBuilder; // <- usa CamelCase consistente
+    private final WebClient.Builder webClientBuilder; // usa CamelCase consistente
 
     public CustomerRestController(CustomerRepository customerRepository, WebClient.Builder webClientBuilder) {
         this.customerRepository = customerRepository;
-        this.webClientBuilder = webClientBuilder; // <- asignación correcta
+        this.webClientBuilder = webClientBuilder; // asignación correcta
     }
 
     @GetMapping()
@@ -84,7 +84,7 @@ public class CustomerRestController {
     @Transactional
     public ResponseEntity<?> post(@Valid @RequestBody CustomerCreateRequest input) {
 
-        // Mapear DTO -> Entidad
+        // Mapear DTO con Entidad
         Customer entity = new Customer();
         entity.setId(null);
         entity.setName(input.getName());
