@@ -1,6 +1,8 @@
 package com.paymentchain.customer.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import com.paymentchain.customer.api.dto.CustomerCreateRequest;
+
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,6 +15,7 @@ import com.paymentchain.customer.repository.CustomerRepository;
 
 import org.springframework.http.MediaType;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -79,23 +82,37 @@ public class CustomerRestController {
 
     @PostMapping
     @Transactional
-    public ResponseEntity<?> post(@RequestBody Customer input) {
-        input.setId(null);
+    public ResponseEntity<?> post(@Valid @RequestBody CustomerCreateRequest input) {
 
-        input.getProducts().forEach(x -> x.setCustomer(input));
+        // Mapear DTO -> Entidad
+        Customer entity = new Customer();
+        entity.setId(null);
+        entity.setName(input.getName());
+        entity.setPhone(input.getPhone());
+        entity.setCode(input.getCode());
+        entity.setIban(input.getIban());
+        entity.setSurname(input.getSurname());
+        entity.setAddress(input.getAddress());
 
         if (input.getProducts() != null) {
-            for (CustomerProduct cp : input.getProducts()) {
-                cp.setId(null);             // NUEVO
-                cp.setCustomer(input);      // back-reference
-                // cp.setProductId(...) ya viene en el JSON
-            }
+            List<CustomerProduct> products = input.getProducts().stream().map(dto -> {
+                CustomerProduct cp = new CustomerProduct();
+                cp.setId(null);
+                cp.setProductId(dto.getProductId());
+                cp.setCustomer(entity);                 
+                return cp;
+            }).toList();
+            entity.setProducts(products);
+        } else {
+            entity.setProducts(List.of());
         }
 
-        Customer saved = customerRepository.save(input);
+        Customer saved = customerRepository.save(entity);
 
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-            .path("/{id}").buildAndExpand(saved.getId()).toUri();
+            .path("/{id}")
+            .buildAndExpand(saved.getId())
+            .toUri();
 
         return ResponseEntity.created(location).body(saved);
     }
