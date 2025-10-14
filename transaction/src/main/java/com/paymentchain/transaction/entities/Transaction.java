@@ -1,5 +1,6 @@
 package com.paymentchain.transaction.entities;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import com.paymentchain.transaction.enums.Channel;
@@ -23,7 +24,7 @@ public class Transaction {
     private String reference;
     private String accountIban;
     private LocalDate date;
-    private Double amount;
+    private BigDecimal amount;
     private Double fee;
     private String description;
 

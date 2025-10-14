@@ -19,7 +19,10 @@ import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -109,30 +112,40 @@ public class CustomerRestController {
 
     @GetMapping("/full")
     public Mono<ResponseEntity<Customer>> getByCode(@RequestParam String code) {
-            return Mono.fromCallable(() -> customerRepository.findByCode(code))   // Optional<Customer>
-                .subscribeOn(Schedulers.boundedElastic())                         // offload JPA (bloqueante)
-                .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))       // Optional -> Mono<Customer>
-                .flatMap(customer -> {
-                    var products = customer.getProducts();
-                    if (products == null || products.isEmpty()) {
-                        return Mono.just(customer);                                // no hay nada que enriquecer
-                    }
-                    return Flux.fromIterable(products)
-                        .flatMap(cp -> {
-                            Long productId = cp.getProductId();
-                            if (productId == null) return Mono.just(cp);           // sin productId, seguimos
+        return Mono.fromCallable(() -> customerRepository.findOneByCode(code)) // ← ya trae products
+            .subscribeOn(Schedulers.boundedElastic()) // offload JPA bloqueante
+            .flatMap(opt -> opt.map(Mono::just).orElseGet(Mono::empty))       // Optional -> Mono<Customer>
+            .flatMap(customer -> {
+                var products = customer.getProducts(); // ya inicializados por @EntityGraph
 
-                            return getProductName(productId)                       // Mono<String>
-                                .onErrorResume(e -> Mono.empty())                  // si falla, tratamos como vacío
-                                .switchIfEmpty(Mono.just("N/A"))                   // valor por defecto si vacío
-                                .doOnNext(cp::setProductName)                      // setea el nombre en el detalle
-                                .thenReturn(cp);                                   // devolvemos el cp para completar el flujo
-                        })
-                        .then(Mono.just(customer));                                // cuando terminen todos, emitimos customer
-                })
-                .map(ResponseEntity::ok)                                           // 200 OK + body
-                .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
-        }
+                Mono<Customer> enriched =
+                    (products == null || products.isEmpty())
+                        ? Mono.just(customer)
+                        : Flux.fromIterable(products)
+                            .flatMap(cp -> {
+                                Long productId = cp.getProductId();
+                                if (productId == null) return Mono.just(cp);
+                                return getProductName(productId)               // Mono<String>
+                                    .onErrorResume(e -> Mono.empty())          // tolera fallo del micro productos
+                                    .switchIfEmpty(Mono.just("N/A"))           // nombre por defecto si vacío
+                                    .doOnNext(cp::setProductName)              // setea nombre en el detalle
+                                    .thenReturn(cp);
+                            })
+                            .then(Mono.just(customer));
+
+                // Enriquecer con transacciones (reactivo, sin bloquear)
+                return enriched.flatMap(cust ->
+                    getTransactions(cust.getIban())                            // Mono<List<?>>
+                        .onErrorReturn(List.of())                              // si falla, lista vacía
+                        .doOnNext(cust::setTransactions)                       // setea en el customer
+                        .thenReturn(cust)
+                );
+            })
+            .map(ResponseEntity::ok)                                           // 200 OK
+            .defaultIfEmpty(ResponseEntity.status(HttpStatus.NOT_FOUND).build()); // 404 si no hay customer
+    }
+
+
 
 
     private Mono<String> getProductName(long id) {
@@ -148,6 +161,33 @@ public class CustomerRestController {
                 .bodyToMono(JsonNode.class)
                 .map(node -> node.path("name").asText(null));
     }
-    
+
+    private Mono<List<Map<String, Object>>> getTransactions(String accountIban) {
+    WebClient client = webClientBuilder
+        .baseUrl("http://localhost:8082/transaction")
+        .build();
+
+    return client.get()
+        .uri(uriBuilder -> uriBuilder
+            .path("/customer/transactions") // asegúrate de que coincida con tu endpoint real
+            .queryParam("accountIban", accountIban)
+            .build())
+        .exchangeToFlux(resp -> {
+            if (resp.statusCode().is2xxSuccessful()) {
+                // Tipo explícito con ParameterizedTypeReference
+                return resp.bodyToFlux(new ParameterizedTypeReference<Map<String, Object>>() {});
+            }
+            if (resp.statusCode().value() == HttpStatus.NOT_FOUND.value()) {
+                // 👇 especifica el tipo genérico para evitar el error
+                return Flux.<Map<String, Object>>empty();
+            }
+            // 👇 también con tipo explícito
+            return Flux.<Map<String, Object>>error(
+                new IllegalStateException("Error remoto: " + resp.statusCode())
+            );
+        })
+        .collectList();
+    }
+
 
 }

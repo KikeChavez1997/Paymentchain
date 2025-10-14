@@ -2,16 +2,19 @@ package com.paymentchain.customer.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.paymentchain.customer.entities.Customer;
 
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
-    //@Query("SELECT c FROM Customer c WHERE c.code = ?1")
     Optional<Customer> findByCode(String code);
 
-    //@Query("SELECT c FROM Customer c WHERE c.iban = ?1")
+     // Método que SÍ trae products
+    @EntityGraph(attributePaths = "products")
+    Optional<Customer> findOneByCode(String code);
+
     Optional<Customer> findByIban(String iban);
 
 }
